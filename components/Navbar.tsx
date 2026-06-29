@@ -47,6 +47,7 @@ export default function Navbar() {
     { label: "Миссия и Цель", target: "mission" },
     { label: "Ценности", target: "values" },
     { label: "О нас", target: "about-us" },
+    { label: "Новости", target: "press-center" },
   ];
 
   // Dynamic text color classes based on scrolling state to ensure legibility
@@ -156,7 +157,7 @@ export default function Navbar() {
         {/* Logo inside sidebar */}
         <div className="flex items-center justify-between mb-4">
           <Image
-            src="/logo.png"
+            src="/logo_v2.png"
             alt="AST Logo"
             width={112}
             height={60}

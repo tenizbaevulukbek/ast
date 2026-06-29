@@ -31,6 +31,7 @@ export default function Footer() {
               { label: "Миссия и Цель", target: "mission" },
               { label: "Ценности", target: "values" },
               { label: "О нас", target: "about-us" },
+              { label: "Новости", target: "press-center" },
             ].map((link, idx) => (
               <a
                 key={link.label + idx}

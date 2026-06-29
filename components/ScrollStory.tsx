@@ -405,7 +405,7 @@ export default function ScrollStory() {
                 textShadow: "0 4px 30px rgba(0,0,0,0.5)",
               }}
             >
-              Ключевой проект: Проектирование, строительство и запуск СЭС в селе Орток
+              Проектирование, строительство и запуск СЭС в селе Орток
             </h2>
 
             <div
@@ -432,9 +432,9 @@ export default function ScrollStory() {
                 }}
               />
               {[
-                { value: "325", unit: "МВт", label: "Мощность солнечной электростанции (СЭС)" },
-                { value: "Ак-Кудук", label: "Место строительства в с. Орток" },
-                { value: "Нарын", label: "Кочкорский район Нарынской области" },
+                { value: "325", unit: "МВт", label: "Мощность солнечной электростанции" },
+                { value: "с. Орток", label: "Место строительства" },
+                { value: "Нарын", label: "Кочкорский район" },
               ].map((metric, i) => (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", position: "relative" }}>
                   <h3

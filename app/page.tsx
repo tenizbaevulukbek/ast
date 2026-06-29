@@ -7,6 +7,7 @@ import Facts from "@/components/Facts";
 import Showcase from "@/components/Showcase";
 import Faq from "@/components/Faq";
 import NextPageBanner from "@/components/NextPageBanner";
+import PressCenter from "@/components/PressCenter";
 import Footer from "@/components/Footer";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -31,6 +32,7 @@ export default function Home() {
         </div>
         <Faq />
         <NextPageBanner />
+        <PressCenter />
       </main>
       <Footer />
       <ScrollToTop />

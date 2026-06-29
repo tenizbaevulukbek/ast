@@ -9,7 +9,7 @@ export default function Hero() {
   const [loopNum, setLoopNum] = useState(0);
   const [typingSpeed, setTypingSpeed] = useState(150);
 
-  const words = ["Чистая энергия.", "Зеленое будущее.", "Солнечная сила."];
+  const words = ["Чистая энергия", "Зеленое будущее", "Солнечная сила"];
 
   useEffect(() => {
     const handleTyping = () => {
@@ -59,9 +59,9 @@ export default function Hero() {
           <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold tracking-normal leading-[0.85] text-[#F5F1EC] select-none">
             АСТ Империал Строй
             <br />
-            <span className="text-brand inline-flex items-center min-h-[1.1em]">
+            <span className="text-brand min-h-[1.1em]">
               {typedText}
-              <span className="ml-1 w-[4px] h-[0.8em] bg-brand animate-pulse" />
+              <span className="inline-block ml-1 w-[4px] h-[0.85em] bg-brand animate-pulse align-baseline" />
             </span>
           </h1>
         </div>
