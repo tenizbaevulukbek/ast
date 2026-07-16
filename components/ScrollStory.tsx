@@ -2,205 +2,299 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 
-// ─── INTERPOLATION HELPER ─────────────────────────────────
-function lerp(stops: [number, number][], p: number): number {
-  if (p <= stops[0][0]) return stops[0][1];
-  if (p >= stops[stops.length - 1][0]) return stops[stops.length - 1][1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (p >= stops[i][0] && p <= stops[i + 1][0]) {
-      const t = (p - stops[i][0]) / (stops[i + 1][0] - stops[i][0]);
-      const easedT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      return stops[i][1] + (stops[i + 1][1] - stops[i][1]) * easedT;
-    }
-  }
-  return stops[stops.length - 1][1];
+// ─── MODULE-LEVEL CONSTANTS ──────────────────────────────────────────────────
+const SLIDES = [
+  {
+    image:
+      "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+  },
+  {
+    image:
+      "https://images.unsplash.com/photo-1544085311-11a028465b03?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+  },
+  {
+    image:
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+  },
+];
+
+const N = SLIDES.length;
+// Duration of the column slide transition in ms
+const TRANSITION_MS = 900;
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// Returns a CSS translateY string for a column at a given slide index.
+// Even columns stack [slide0→slideN-1] top-to-bottom and move UP when going forward.
+// Odd  columns stack [slideN-1→slide0] top-to-bottom and move DOWN when going forward.
+// Using vh units avoids dependency on window.innerHeight in the initial render.
+function getTranslateY(colIndex: number, slideIndex: number): string {
+  const isEven = colIndex % 2 === 0;
+  const vh = isEven
+    ? -slideIndex * 100          // moves up  (translateY decreases)
+    : -(N - 1 - slideIndex) * 100; // moves down (translateY increases)
+  return `translateY(${vh}vh)`;
 }
 
+// ─── COMPONENT ───────────────────────────────────────────────────────────────
 export default function ScrollStory() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [progress, setProgress] = useState(0);
-  const [mounted, setMounted] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const targetProgressRef = useRef(0);
-  const currentProgressRef = useRef(0);
-  const rafRef = useRef<number>(0);
-  const isVisibleRef = useRef(true);
-  const animateRef = useRef<(() => void) | null>(null);
 
+  const [mounted, setMounted]       = useState(false);
+  const [isMobile, setIsMobile]     = useState(false);
+  const [cols, setCols]             = useState(3);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // DOM refs for column inner containers — animated via CSS transition (no React re-render)
+  const colInnerRefs = useRef<(HTMLDivElement | null)[]>([null, null, null]);
+
+  // Stable refs for event handlers (avoids stale closure issues)
+  const isAnimatingRef    = useRef(false);
+  const currentSlideRef   = useRef(0);
+  const colsRef           = useRef(3);
+  const scrollRafRef      = useRef<number>(0);
+
+  // Touch tracking
+  const touchStartYRef = useRef<number | null>(null);
+
+  // ── Mount ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // ── Layout detection — single setState to avoid double re-render ───────────
   useEffect(() => {
     if (!mounted) return;
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const check = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setCols(mobile ? 1 : 3);
+      colsRef.current = mobile ? 1 : 3;
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, [mounted]);
 
-  // Calculate raw scroll progress
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const containerHeight = containerRef.current.offsetHeight;
-    const viewportHeight = window.innerHeight;
+  // ── Navigate to a specific slide ───────────────────────────────────────────
+  const goToSlide = useCallback(
+    (targetSlide: number) => {
+      if (isAnimatingRef.current) return;
+      if (targetSlide < 0 || targetSlide >= N) return;
+      if (targetSlide === currentSlideRef.current) return;
+      if (!containerRef.current) return;
 
-    const scrolled = -rect.top;
-    const totalScrollable = containerHeight - viewportHeight;
-    const p = Math.max(0, Math.min(1, scrolled / totalScrollable));
-    targetProgressRef.current = p;
+      isAnimatingRef.current  = true;
+      currentSlideRef.current = targetSlide;
+      setCurrentSlide(targetSlide);
+
+      // — Animate all column inner containers via CSS transition
+      const numCols = colsRef.current;
+      for (let i = 0; i < numCols; i++) {
+        const el = colInnerRefs.current[i];
+        if (!el) continue;
+        el.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(0.76, 0, 0.24, 1)`;
+        el.style.transform  = getTranslateY(i, targetSlide);
+      }
+
+      // — Sync page scroll position with the target slide.
+      // Each slide occupies one viewport height (100vh) within the section.
+      const rect       = containerRef.current.getBoundingClientRect();
+      const sectionTop = window.scrollY + rect.top;
+      const vh         = window.innerHeight;
+      const targetY    = sectionTop + targetSlide * vh;
+      const startY     = window.scrollY;
+      const diff       = targetY - startY;
+      const t0         = performance.now();
+
+      cancelAnimationFrame(scrollRafRef.current);
+      const scrollStep = (now: number) => {
+        const ratio = Math.min((now - t0) / TRANSITION_MS, 1);
+        // cubic easeInOut — matches column animation curve
+        const ease =
+          ratio < 0.5
+            ? 4 * ratio ** 3
+            : 1 - Math.pow(-2 * ratio + 2, 3) / 2;
+        window.scrollTo(0, startY + diff * ease);
+        if (ratio < 1) {
+          scrollRafRef.current = requestAnimationFrame(scrollStep);
+        }
+      };
+      scrollRafRef.current = requestAnimationFrame(scrollStep);
+
+      // Release animation lock after transition completes
+      setTimeout(() => {
+        isAnimatingRef.current = false;
+      }, TRANSITION_MS + 60);
+    },
+    []
+  );
+
+  // ── Wheel event — intercept when section is the active sticky viewport ─────
+  // When the user scrolls down: go to next slide (preventDefault).
+  // When at the last slide and scrolling down: release (let page scroll past).
+  // Same logic for scrolling up / first slide.
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      // Section is in "sticky mode" when its top is flush with the viewport top
+      // and it still covers the full viewport height
+      const isSticky =
+        rect.top <= 2 && rect.bottom >= window.innerHeight - 2;
+      if (!isSticky) return;
+
+      const slide = currentSlideRef.current;
+
+      if (e.deltaY > 0 && slide < N - 1) {
+        // Forward — not at last slide
+        e.preventDefault();
+        goToSlide(slide + 1);
+      } else if (e.deltaY < 0 && slide > 0) {
+        // Backward — not at first slide
+        e.preventDefault();
+        goToSlide(slide - 1);
+      }
+      // At boundary slides: do NOT preventDefault → page scrolls past naturally
+    };
+
+    // Must be non-passive to call preventDefault
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [mounted, goToSlide]);
+
+  // ── Touch events ───────────────────────────────────────────────────────────
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
   }, []);
 
-  // rAF-based smooth interpolation toward target progress
-  useEffect(() => {
-    if (!mounted) return;
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartYRef.current === null) return;
+      const delta = touchStartYRef.current - e.changedTouches[0].clientY;
+      touchStartYRef.current = null;
+      if (Math.abs(delta) < 40) return; // ignore tiny swipes
 
-    const animate = () => {
-      const current = currentProgressRef.current;
-      const target = targetProgressRef.current;
-      const diff = target - current;
+      const slide = currentSlideRef.current;
+      if (delta > 0 && slide < N - 1) goToSlide(slide + 1);
+      else if (delta < 0 && slide > 0) goToSlide(slide - 1);
+    },
+    [goToSlide]
+  );
 
-      if (Math.abs(diff) > 0.0001) {
-        const next = current + diff * 0.1;
-        currentProgressRef.current = next;
-        setProgress(next);
-      } else if (current !== target) {
-        currentProgressRef.current = target;
-        setProgress(target);
-      }
-
-      // Continue loop only if section is visible or still interpolating
-      if (isVisibleRef.current || Math.abs(diff) > 0.0001) {
-        rafRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    animateRef.current = animate;
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // Initial call
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [mounted, handleScroll]);
-
-  // Pause rAF loop when section is not visible
-  useEffect(() => {
-    if (!mounted || !containerRef.current) return;
-    const el = containerRef.current;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const wasVisible = isVisibleRef.current;
-        isVisibleRef.current = entry.isIntersecting;
-        if (!wasVisible && entry.isIntersecting && animateRef.current) {
-          rafRef.current = requestAnimationFrame(animateRef.current);
-        }
-      },
-      { threshold: 0 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [mounted]);
-
-  // ─── PHASE BREAKDOWN ──────────────────────────────────────
-  //
-  //  0.00 → 0.30  Phase 1: Video LEFT (44%), Text on RIGHT
-  //  0.30 → 0.65  Phase 2: Video slides to RIGHT, Text appears LEFT
-  //  0.65 → 1.00  Phase 3: Video expands FULL SCREEN, overlay text + metrics
-  //
-
-  // Video block position (% of viewport width for left offset)
-  const videoLeftPct = lerp([
-    [0, 4], [0.25, 4], [0.35, 20], [0.55, 52], [0.65, 52], [0.78, 0], [1, 0]
-  ], progress);
-
-  // Video block width (% of viewport)
-  const videoWidthPct = lerp([
-    [0, 44], [0.65, 44], [0.78, 100], [1, 100]
-  ], progress);
-
-  // Video block height (% of viewport)
-  const videoHeightPct = lerp([
-    [0, 65], [0.65, 65], [0.78, 100], [1, 100]
-  ], progress);
-
-  // Video block top offset
-  const videoTopPct = lerp([
-    [0, 17.5], [0.65, 17.5], [0.78, 0], [1, 0]
-  ], progress);
-
-  // Video border radius
-  const videoBorderRadiusPx = lerp([
-    [0, 20], [0.65, 20], [0.78, 0], [1, 0]
-  ], progress);
-
-  // ─── TEXT OPACITIES ─────────────────────────────────
-  // Text 1 (RIGHT side): visible 0.00 → 0.25
-  const text1Opacity = lerp([
-    [0, 1], [0.22, 1], [0.30, 0]
-  ], progress);
-  const text1TranslateX = lerp([
-    [0, 0], [0.22, 0], [0.30, -40]
-  ], progress);
-
-  // Text 2 (LEFT side): visible 0.38 → 0.60
-  const text2Opacity = lerp([
-    [0.33, 0], [0.40, 1], [0.56, 1], [0.64, 0]
-  ], progress);
-  const text2TranslateX = lerp([
-    [0.33, -50], [0.40, 0], [0.56, 0], [0.64, 40]
-  ], progress);
-
-  // Combined Phase 3 overlay (text + metrics): visible 0.80 → 1.00
-  const text3Opacity = lerp([
-    [0.80, 0], [0.88, 1], [1, 1]
-  ], progress);
-  const text3TranslateY = lerp([
-    [0.80, 40], [0.88, 0]
-  ], progress);
-
-  // Dark overlay for Phase 3
-  const darkOverlayOpacity = lerp([
-    [0.72, 0], [0.82, 0.6], [1, 0.6]
-  ], progress);
-
-  const overlayOpacity = isMobile
-    ? lerp([[0.65, 0], [0.72, 0.75], [1, 0.75]], progress)
-    : darkOverlayOpacity;
-
+  // ── SSR placeholder ────────────────────────────────────────────────────────
   if (!mounted) {
-    return <section className="relative w-full h-[500vh] bg-bg-dark" />;
+    return (
+      <section
+        className="relative w-full bg-bg-dark"
+        style={{ height: `${N * 100}vh` }}
+      />
+    );
   }
 
-  return (
-    <section ref={containerRef} className="relative w-full h-[500vh] bg-bg-dark">
-      <div className="sticky top-0 w-full h-screen overflow-hidden">
+  // ── Derived display values (from discrete currentSlide state) ─────────────
+  const overlayOpacity = currentSlide === N - 1 ? 0.75 : 0.45;
 
-        {/* ─── TEXT 1: RIGHT SIDE (Phase 1) ─── */}
+  return (
+    <section
+      ref={containerRef}
+      className="relative w-full bg-bg-dark"
+      // Section height = N viewports worth of scroll room (N * 100vh)
+      style={{ height: `${N * 100}vh` }}
+    >
+      {/* ── Sticky viewport ──────────────────────────────────────────────── */}
+      <div
+        className="sticky top-0 w-full h-screen overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* ─── SLICED COLUMNS ─────────────────────────────────────────────── */}
+        <div className="absolute inset-0 flex pointer-events-none z-0">
+          {Array.from({ length: cols }).map((_, colIndex) => {
+            const isEven = colIndex % 2 === 0;
+            // Even columns: slides stacked top→bottom [0, 1, 2, …]
+            // Odd  columns: slides stacked top→bottom [N-1, …, 1, 0] (reversed)
+            // This gives alternating movement directions during transitions.
+            const orderedSlides = isEven ? SLIDES : [...SLIDES].reverse();
+
+            return (
+              <div
+                key={colIndex}
+                className="h-full relative overflow-hidden flex-1"
+                style={{
+                  // Overlap adjacent columns by 1.5px to prevent subpixel gap rendering
+                  width: `calc(${100 / cols}% + 1.5px)`,
+                  marginLeft: colIndex === 0 ? "0" : "-1px",
+                }}
+              >
+                {/* Column inner — animated via CSS transition, not React re-renders */}
+                <div
+                  ref={(el) => {
+                    colInnerRefs.current[colIndex] = el;
+                  }}
+                  className="flex flex-col"
+                  style={{
+                    // N stacked slots, each 100vh tall
+                    height: `${N * 100}vh`,
+                    willChange: "transform",
+                    // Initial position for slide 0 (no transition on initial render)
+                    transform: getTranslateY(colIndex, 0),
+                  }}
+                >
+                  {orderedSlides.map((slide, si) => (
+                    <div
+                      key={si}
+                      className="relative overflow-hidden shrink-0"
+                      style={{ height: "100vh", width: "100%" }}
+                    >
+                      <img
+                        src={slide.image}
+                        alt={`Slide ${si}`}
+                        draggable={false}
+                        className="absolute top-0 max-w-none h-full object-cover pointer-events-none select-none"
+                        style={{
+                          // Span the full viewport width across all columns
+                          width: `${cols * 100}%`,
+                          // Offset horizontally so each column shows its own slice
+                          left: `${-100 * colIndex}%`,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ─── CINEMATIC DARK OVERLAY ──────────────────────────────────────── */}
         <div
+          className="absolute inset-0 bg-[#2F343A] z-10 pointer-events-none transition-opacity duration-700"
+          style={{ opacity: overlayOpacity }}
+        />
+
+        {/* ─── TEXT 0: MISSION (visible on slide 0) ────────────────────────── */}
+        <div
+          className="absolute z-20 pointer-events-none transition-all duration-700"
           style={{
-            position: "absolute",
-            left: isMobile ? 0 : "auto",
-            right: 0,
+            left: 0,
             top: 0,
             width: isMobile ? "100vw" : "50vw",
             height: "100%",
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
-            paddingLeft: isMobile ? "8vw" : "4vw",
-            paddingRight: isMobile ? "8vw" : "6vw",
-            zIndex: 20,
-            pointerEvents: "none",
-            opacity: text1Opacity,
-            transform: `translateX(${text1TranslateX}px)`,
-            willChange: "opacity, transform",
+            paddingLeft: isMobile ? "8vw" : "6vw",
+            paddingRight: isMobile ? "8vw" : "4vw",
+            opacity: currentSlide === 0 ? 1 : 0,
+            transform:
+              currentSlide === 0
+                ? "translateY(0px)"
+                : currentSlide > 0
+                ? "translateY(-30px)"
+                : "translateY(30px)",
           }}
         >
           <div style={{ maxWidth: "520px" }}>
@@ -225,7 +319,10 @@ export default function ScrollStory() {
                 lineHeight: 1.6,
               }}
             >
-              Трансформировать передовые мировые инновации в энергетическую независимость и экономическую прочность Кыргызской Республики, делая ставку на доступность, неисчерпаемость и экологичность солнечной энергии.
+              Трансформировать передовые мировые инновации в энергетическую
+              независимость и экономическую прочность Кыргызской Республики,
+              делая ставку на доступность, неисчерпаемость и экологичность
+              солнечной энергии.
             </p>
             <div
               style={{
@@ -238,24 +335,26 @@ export default function ScrollStory() {
           </div>
         </div>
 
-        {/* ─── TEXT 2: LEFT SIDE (Phase 2) ─── */}
+        {/* ─── TEXT 1: STRATEGIC GOAL (visible on slide 1) ─────────────────── */}
         <div
+          className="absolute z-20 pointer-events-none transition-all duration-700"
           style={{
-            position: "absolute",
             left: 0,
-            right: isMobile ? 0 : "auto",
             top: 0,
-            width: isMobile ? "100vw" : "48vw",
+            width: isMobile ? "100vw" : "50vw",
             height: "100%",
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
             paddingLeft: isMobile ? "8vw" : "6vw",
             paddingRight: isMobile ? "8vw" : "4vw",
-            zIndex: 20,
-            opacity: text2Opacity,
-            transform: `translateX(${text2TranslateX}px)`,
-            willChange: "opacity, transform",
+            opacity: currentSlide === 1 ? 1 : 0,
+            transform:
+              currentSlide === 1
+                ? "translateY(0px)"
+                : currentSlide > 1
+                ? "translateY(-30px)"
+                : "translateY(30px)",
           }}
         >
           <div style={{ maxWidth: "520px" }}>
@@ -278,110 +377,36 @@ export default function ScrollStory() {
                 color: "#F5F1EC",
                 fontWeight: 300,
                 lineHeight: 1.6,
-                marginBottom: "2rem",
               }}
             >
-              Развитие высокотехнологичной зеленой энергетики в Кыргызской Республике через строительство современных СЭС, обеспечивая экономику региона экологически чистой и неисчерпаемой энергией.
+              Развитие высокотехнологичной зеленой энергетики в Кыргызской
+              Республике через строительство современных СЭС, обеспечивая
+              экономику региона экологически чистой и неисчерпаемой энергией.
             </p>
+            <div
+              style={{
+                marginTop: "2rem",
+                width: "4rem",
+                height: "2px",
+                background: "linear-gradient(to right, #F08A1D, transparent)",
+              }}
+            />
           </div>
         </div>
 
-        {/* ─── THE MOVING VIDEO BLOCK ─── */}
+        {/* ─── TEXT 2: PROJECT ORTOK — metrics (visible on slide 2) ─────────── */}
         <div
-          style={
-            isMobile
-              ? {
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: "100vw",
-                height: "100vh",
-                borderRadius: 0,
-                overflow: "hidden",
-                zIndex: 10,
-                opacity: lerp([[0, 0], [0.65, 0], [0.72, 1], [1, 1]], progress),
-                willChange: "opacity",
-              }
-              : {
-                position: "absolute",
-                left: `${videoLeftPct}vw`,
-                top: `${videoTopPct}vh`,
-                width: `${videoWidthPct}vw`,
-                height: `${videoHeightPct}vh`,
-                borderRadius: `${videoBorderRadiusPx}px`,
-                overflow: "hidden",
-                zIndex: 10,
-                boxShadow: "0 25px 80px -15px rgba(0,0,0,0.5), 0 10px 30px -10px rgba(0,0,0,0.3)",
-                willChange: "left, top, width, height, border-radius",
-              }
-          }
-        >
-          {/* Video */}
-          <video
-            src="/video.mp4"
-            autoPlay
-            loop
-            muted
-            playsInline
-            poster="/hero_backdrop_v3.jpg"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-
-          {/* Fallback gradient for when video hasn't loaded */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(135deg, #3a4049 0%, #2F343A 50%, #252930 100%)",
-              zIndex: -1,
-            }}
-          />
-
-          {/* Subtle gradient overlay */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(135deg, rgba(47,52,58,0.1) 0%, transparent 50%, rgba(47,52,58,0.2) 100%)",
-              zIndex: 5,
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* Dark overlay for Phase 3 text readability */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(47,52,58,0.85)",
-              opacity: overlayOpacity,
-              zIndex: 6,
-              pointerEvents: "none",
-            }}
-          />
-        </div>
-
-        {/* ─── COMBINED OVERLAY (Phase 3 — fullscreen) ─── */}
-        <div
+          className="absolute z-20 pointer-events-none transition-all duration-700"
           style={{
-            position: "absolute",
             inset: 0,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            pointerEvents: "none",
-            zIndex: 30,
             padding: "2rem 1.5rem",
-            opacity: text3Opacity,
-            transform: `translateY(${text3TranslateY}px)`,
-            willChange: "opacity, transform",
+            opacity: currentSlide === 2 ? 1 : 0,
+            transform:
+              currentSlide === 2 ? "translateY(0px)" : "translateY(30px)",
           }}
         >
           <div
@@ -395,9 +420,9 @@ export default function ScrollStory() {
             }}
           >
             <h2
+              className="text-white"
               style={{
                 fontSize: "clamp(1.875rem, 4vw, 3.75rem)",
-                color: "white",
                 fontWeight: 500,
                 textAlign: "center",
                 lineHeight: 1.15,
@@ -418,7 +443,7 @@ export default function ScrollStory() {
                 position: "relative",
               }}
             >
-              {/* Connecting line from Dot 1 to Dot 3 */}
+              {/* Connecting line between metric dots */}
               <div
                 style={{
                   position: "absolute",
@@ -432,11 +457,24 @@ export default function ScrollStory() {
                 }}
               />
               {[
-                { value: "325", unit: "МВт", label: "Мощность солнечной электростанции" },
+                {
+                  value: "325",
+                  unit: "МВт",
+                  label: "Мощность солнечной электростанции",
+                },
                 { value: "с. Орток", label: "Место строительства" },
                 { value: "Нарын", label: "Кочкорский район" },
               ].map((metric, i) => (
-                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", position: "relative" }}>
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    position: "relative",
+                  }}
+                >
                   <h3
                     style={{
                       fontSize: "clamp(1.75rem, 4vw, 4.5rem)",
@@ -450,7 +488,12 @@ export default function ScrollStory() {
                   >
                     {metric.value}{" "}
                     {metric.unit && (
-                      <span style={{ fontSize: "clamp(0.9rem, 2vw, 1.875rem)", marginLeft: "0.25rem" }}>
+                      <span
+                        style={{
+                          fontSize: "clamp(0.9rem, 2vw, 1.875rem)",
+                          marginLeft: "0.25rem",
+                        }}
+                      >
                         {metric.unit}
                       </span>
                     )}
@@ -467,7 +510,7 @@ export default function ScrollStory() {
                   >
                     {metric.label}
                   </p>
-                  {/* Decorative node */}
+                  {/* Decorative dot on the connecting line */}
                   <div
                     style={{
                       position: "absolute",
@@ -487,6 +530,81 @@ export default function ScrollStory() {
           </div>
         </div>
 
+        {/* ─── SLIDE INDICATOR DOTS ────────────────────────────────────────── */}
+        <div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-30 pointer-events-none"
+        >
+          {SLIDES.map((_, i) => (
+            <div
+              key={i}
+              className="transition-all duration-500"
+              style={{
+                width: currentSlide === i ? "2rem" : "0.375rem",
+                height: "0.375rem",
+                borderRadius: "9999px",
+                background:
+                  currentSlide === i
+                    ? "#F08A1D"
+                    : "rgba(245, 241, 236, 0.4)",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* ─── VERTICAL MINIMALIST NAVIGATION ARROWS (Right side) ─────────── */}
+        {!isMobile && (
+          <div className="absolute right-8 md:right-12 top-1/2 -translate-y-1/2 flex flex-col gap-6 z-30 pointer-events-auto">
+            {/* Up Arrow */}
+            <button
+              onClick={() =>
+                currentSlide > 0 && goToSlide(currentSlide - 1)
+              }
+              disabled={currentSlide === 0}
+              className="text-[#F5F1EC] hover:text-[#F08A1D] transition-colors duration-300 disabled:opacity-20 cursor-pointer p-2 flex items-center justify-center"
+              aria-label="Предыдущий слайд"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-6 h-10 md:w-8 md:h-12"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 20V4M7 9l5-5"
+                />
+              </svg>
+            </button>
+
+            {/* Down Arrow */}
+            <button
+              onClick={() =>
+                currentSlide < N - 1 && goToSlide(currentSlide + 1)
+              }
+              disabled={currentSlide === N - 1}
+              className="text-[#F5F1EC] hover:text-[#F08A1D] transition-colors duration-300 disabled:opacity-20 cursor-pointer p-2 flex items-center justify-center"
+              aria-label="Следующий слайд"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-6 h-10 md:w-8 md:h-12"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16M7 15l5 5"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

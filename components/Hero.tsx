@@ -3,18 +3,20 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 
+// Module-level constant — created once, never re-allocated during re-renders
+const WORDS = ["Чистая энергия", "Зеленое будущее", "Солнечная сила"];
+
 export default function Hero() {
   const [typedText, setTypedText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [loopNum, setLoopNum] = useState(0);
   const [typingSpeed, setTypingSpeed] = useState(150);
 
-  const words = ["Чистая энергия", "Зеленое будущее", "Солнечная сила"];
 
   useEffect(() => {
     const handleTyping = () => {
-      const i = loopNum % words.length;
-      const fullWord = words[i];
+      const i = loopNum % WORDS.length;
+      const fullWord = WORDS[i];
 
       if (isDeleting) {
         setTypedText(fullWord.substring(0, typedText.length - 1));

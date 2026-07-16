@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 
 interface BannerItem {
@@ -56,32 +56,33 @@ export default function PressCenter() {
 
   const maxIndex = bannerData.length - 1;
 
-  const nextSlide = () => {
-    setCurrentIndex((prev) => (prev < maxIndex ? prev + 1 : 0));
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : maxIndex));
-  };
-
-  // Reset autoplay timer whenever current slide changes
-  const resetAutoplay = () => {
-    if (autoPlayTimerRef.current) {
-      clearInterval(autoPlayTimerRef.current);
-    }
+  // ─── AUTOPLAY ────────────────────────────────────────────────────────────────
+  // Uses functional setState to avoid stale closures — no dependency on currentIndex.
+  // Called once on mount and reset manually after user interaction.
+  const startAutoplay = useCallback(() => {
+    if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     autoPlayTimerRef.current = setInterval(() => {
-      nextSlide();
-    }, 20000); // 20 seconds auto-rotation
-  };
+      setCurrentIndex(prev => (prev < maxIndex ? prev + 1 : 0));
+    }, 20000);
+  }, [maxIndex]);
 
   useEffect(() => {
-    resetAutoplay();
+    startAutoplay();
     return () => {
-      if (autoPlayTimerRef.current) {
-        clearInterval(autoPlayTimerRef.current);
-      }
+      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [currentIndex]);
+  }, [startAutoplay]);
+
+  const nextSlide = useCallback(() => {
+    setCurrentIndex(prev => (prev < maxIndex ? prev + 1 : 0));
+    startAutoplay();
+  }, [maxIndex, startAutoplay]);
+
+  const prevSlide = useCallback(() => {
+    setCurrentIndex(prev => (prev > 0 ? prev - 1 : maxIndex));
+    startAutoplay();
+  }, [maxIndex, startAutoplay]);
+
 
   // Touch triggers (swiping)
   const handleTouchStart = (e: React.TouchEvent) => {
