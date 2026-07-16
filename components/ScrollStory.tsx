@@ -6,15 +6,15 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 const SLIDES = [
   {
     image:
-      "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+      "https://images.unsplash.com/photo-1694327671725-e2a81cda3436?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     image:
-      "https://images.unsplash.com/photo-1544085311-11a028465b03?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+      "https://images.unsplash.com/photo-1508790762848-8a3096277c8f?q=80&w=2088&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     image:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?dpr=2&auto=format&fit=crop&w=1500&h=1000&q=80&cs=tinysrgb&crop=",
+      "https://images.unsplash.com/photo-1677137262472-f17cbb543de5?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ];
 
@@ -39,19 +39,19 @@ function getTranslateY(colIndex: number, slideIndex: number): string {
 export default function ScrollStory() {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [mounted, setMounted]       = useState(false);
-  const [isMobile, setIsMobile]     = useState(false);
-  const [cols, setCols]             = useState(3);
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [cols, setCols] = useState(3);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // DOM refs for column inner containers — animated via CSS transition (no React re-render)
   const colInnerRefs = useRef<(HTMLDivElement | null)[]>([null, null, null]);
 
   // Stable refs for event handlers (avoids stale closure issues)
-  const isAnimatingRef    = useRef(false);
-  const currentSlideRef   = useRef(0);
-  const colsRef           = useRef(3);
-  const scrollRafRef      = useRef<number>(0);
+  const isAnimatingRef = useRef(false);
+  const currentSlideRef = useRef(0);
+  const colsRef = useRef(3);
+  const scrollRafRef = useRef<number>(0);
 
   // Touch tracking
   const touchStartYRef = useRef<number | null>(null);
@@ -83,7 +83,7 @@ export default function ScrollStory() {
       if (targetSlide === currentSlideRef.current) return;
       if (!containerRef.current) return;
 
-      isAnimatingRef.current  = true;
+      isAnimatingRef.current = true;
       currentSlideRef.current = targetSlide;
       setCurrentSlide(targetSlide);
 
@@ -93,18 +93,18 @@ export default function ScrollStory() {
         const el = colInnerRefs.current[i];
         if (!el) continue;
         el.style.transition = `transform ${TRANSITION_MS}ms cubic-bezier(0.76, 0, 0.24, 1)`;
-        el.style.transform  = getTranslateY(i, targetSlide);
+        el.style.transform = getTranslateY(i, targetSlide);
       }
 
       // — Sync page scroll position with the target slide.
       // Each slide occupies one viewport height (100vh) within the section.
-      const rect       = containerRef.current.getBoundingClientRect();
+      const rect = containerRef.current.getBoundingClientRect();
       const sectionTop = window.scrollY + rect.top;
-      const vh         = window.innerHeight;
-      const targetY    = sectionTop + targetSlide * vh;
-      const startY     = window.scrollY;
-      const diff       = targetY - startY;
-      const t0         = performance.now();
+      const vh = window.innerHeight;
+      const targetY = sectionTop + targetSlide * vh;
+      const startY = window.scrollY;
+      const diff = targetY - startY;
+      const t0 = performance.now();
 
       cancelAnimationFrame(scrollRafRef.current);
       const scrollStep = (now: number) => {
@@ -293,8 +293,8 @@ export default function ScrollStory() {
               currentSlide === 0
                 ? "translateY(0px)"
                 : currentSlide > 0
-                ? "translateY(-30px)"
-                : "translateY(30px)",
+                  ? "translateY(-30px)"
+                  : "translateY(30px)",
           }}
         >
           <div style={{ maxWidth: "520px" }}>
@@ -353,8 +353,8 @@ export default function ScrollStory() {
               currentSlide === 1
                 ? "translateY(0px)"
                 : currentSlide > 1
-                ? "translateY(-30px)"
-                : "translateY(30px)",
+                  ? "translateY(-30px)"
+                  : "translateY(30px)",
           }}
         >
           <div style={{ maxWidth: "520px" }}>
@@ -528,27 +528,6 @@ export default function ScrollStory() {
               ))}
             </div>
           </div>
-        </div>
-
-        {/* ─── SLIDE INDICATOR DOTS ────────────────────────────────────────── */}
-        <div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-30 pointer-events-none"
-        >
-          {SLIDES.map((_, i) => (
-            <div
-              key={i}
-              className="transition-all duration-500"
-              style={{
-                width: currentSlide === i ? "2rem" : "0.375rem",
-                height: "0.375rem",
-                borderRadius: "9999px",
-                background:
-                  currentSlide === i
-                    ? "#F08A1D"
-                    : "rgba(245, 241, 236, 0.4)",
-              }}
-            />
-          ))}
         </div>
 
         {/* ─── VERTICAL MINIMALIST NAVIGATION ARROWS (Right side) ─────────── */}
