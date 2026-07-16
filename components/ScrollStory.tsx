@@ -279,15 +279,12 @@ export default function ScrollStory() {
         <div
           className="absolute z-20 pointer-events-none transition-all duration-700"
           style={{
-            left: 0,
-            top: 0,
-            width: isMobile ? "100vw" : "50vw",
-            height: "100%",
+            inset: 0,
             display: "flex",
             flexDirection: "column",
+            alignItems: "center",
             justifyContent: "center",
-            paddingLeft: isMobile ? "8vw" : "6vw",
-            paddingRight: isMobile ? "8vw" : "4vw",
+            padding: "2rem 1.5rem",
             opacity: currentSlide === 0 ? 1 : 0,
             transform:
               currentSlide === 0
@@ -297,7 +294,7 @@ export default function ScrollStory() {
                   : "translateY(30px)",
           }}
         >
-          <div style={{ maxWidth: "520px" }}>
+          <div style={{ width: "100%", maxWidth: "800px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <span
               style={{
                 display: "inline-block",
@@ -329,7 +326,7 @@ export default function ScrollStory() {
                 marginTop: "2rem",
                 width: "4rem",
                 height: "2px",
-                background: "linear-gradient(to right, #F08A1D, transparent)",
+                background: "linear-gradient(to right, transparent, #F08A1D, transparent)",
               }}
             />
           </div>
@@ -339,15 +336,12 @@ export default function ScrollStory() {
         <div
           className="absolute z-20 pointer-events-none transition-all duration-700"
           style={{
-            left: 0,
-            top: 0,
-            width: isMobile ? "100vw" : "50vw",
-            height: "100%",
+            inset: 0,
             display: "flex",
             flexDirection: "column",
+            alignItems: "center",
             justifyContent: "center",
-            paddingLeft: isMobile ? "8vw" : "6vw",
-            paddingRight: isMobile ? "8vw" : "4vw",
+            padding: "2rem 1.5rem",
             opacity: currentSlide === 1 ? 1 : 0,
             transform:
               currentSlide === 1
@@ -357,7 +351,7 @@ export default function ScrollStory() {
                   : "translateY(30px)",
           }}
         >
-          <div style={{ maxWidth: "520px" }}>
+          <div style={{ width: "100%", maxWidth: "800px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <span
               style={{
                 display: "inline-block",
@@ -388,7 +382,7 @@ export default function ScrollStory() {
                 marginTop: "2rem",
                 width: "4rem",
                 height: "2px",
-                background: "linear-gradient(to right, #F08A1D, transparent)",
+                background: "linear-gradient(to right, transparent, #F08A1D, transparent)",
               }}
             />
           </div>
